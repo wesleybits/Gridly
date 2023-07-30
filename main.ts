@@ -1,4 +1,5 @@
 import {Grid} from './src/Grid.ts'
+import {DebugIO} from './src/Io.ts'
 
 let filename = ''
 let debug = false
@@ -27,12 +28,22 @@ try {
 }
 
 const grid = await Grid.load(filename)
+const debugio = new DebugIO()
+if (debug) {
+    grid.io = debugio
+}
+
 const e = new TextEncoder()
 const buf = new Uint8Array(1024)
 while (grid.running) {
     if (debug) {
         const g = grid.grid
         g[grid.position.y][grid.position.x] = '☺'
+
+        debugio.tail(3).forEach(row => {
+            console.log(row)
+        })
+
         console.log('V:', grid.velocity.toString())
         console.log('S:', grid.stack)
         console.log('Mode:', grid.mode)
