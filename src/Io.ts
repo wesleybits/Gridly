@@ -93,15 +93,15 @@ export class DebugIO implements GridIO {
     }
 
     getChar(): string {
-        this.putString(': ')
+        Deno.stdout.writeSync(new TextEncoder().encode('Input a char: '))
         return this.#getc()
     }
 
     getDigit(): bigint {
-        this.putString('(0-9): ')
+        Deno.stdout.writeSync(new TextEncoder().encode('Input a digit (0-9): '))
         let c = this.#getc()
         while ('0' > c || c > '9') {
-            this.putString('(0-9): ')
+            Deno.stdout.writeSync(new TextEncoder().encode('(0-9): '))
             c = this.#getc()
         }
         return BigInt(c)
