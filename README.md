@@ -24,6 +24,38 @@ Befunge's conditional branching operators, '`_`' and '`|`', are replaced with
 also ignores any character that isn't an opcode. Other than that, the languages
 are the same.
 
+# Script Usage
+
+The script is easy to use.
+
+First examine the sources you're about to execute:
+```sh
+cat demos/dear-god.grid
+```
+
+Next, invoke Gridly with `--allow-read` and the file name to execute the script:
+```sh
+deno run --allow-read main.ts demos/dear-god.grid
+```
+
+Alternatively, include the optional "debug" flag to put Gridly into stepper mode:
+```sh
+deno run --allow-read main.ts demos/dear-god.grid debug
+```
+
+Pressing `Ctrl-C` at any time will force Gridly to quit.
+
+# Compiling
+
+Deno has an experimental feature that compiles your Typescript into a
+self-contained executable. You can make use of this with the following:
+
+```sh
+deno compile --allow-read -o gridly main.ts
+```
+
+The compiled program works the same as the script.
+
 # Language Description
 
 The grid executor has four major components: the grid itself containing the
