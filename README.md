@@ -123,7 +123,7 @@ Grid uses single-character operations, they are:
 ### Logic
 - `!`: Not operator. Pop a number off the stack, push a 1 if zero, otherwise
   push a 0.
-- `\``: Greater than operator. Pop two numbers off the stack. If the second
+- `` ` ``: Greater than operator. Pop two numbers off the stack. If the second
   number is greater than the first number, push a 1, otherwise push a 0.
 
 ### I/O
