@@ -19,10 +19,6 @@ export class Vector2 {
         return new Vector2(this.#x + v.x, this.#y + v.y)
     }
 
-    subtract(v: Vector2): Vector2 {
-        return new Vector2(this.#x - v.x, this.#y - v.y)
-    }
-
     toString(): string {
         return `{x: ${this.#x}, y: ${this.#y}}`
     }
