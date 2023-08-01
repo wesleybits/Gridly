@@ -52,7 +52,7 @@ export interface Backtrace {
     pushPlace(x: bigint, y: bigint, oldV: string): void
     pushGrab(x: bigint, y: bigint): void
     pushPushInt(): void
-    latchOps(): void
+    commitOps(): void
     pop(): Delta[] | undefined
     get depth(): number
 }
@@ -106,7 +106,7 @@ export class NullBacktrace implements Backtrace {
     pushPushInt(): void {
         return
     }
-    latchOps(): void {
+    commitOps(): void {
         return
     }
     pop(): Delta[] | undefined {
@@ -194,7 +194,7 @@ export class RecordingBacktrace implements Backtrace {
         this.#shiftOp({tag: 'pushInt'})
     }
 
-    latchOps(): void {
+    commitOps(): void {
         while (this.#stackLimit && this.#stack.length >= this.#stackLimit) {
             this.#stack.shift()
         }

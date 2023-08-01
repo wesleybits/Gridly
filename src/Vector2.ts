@@ -1,3 +1,5 @@
+export type Vector2Like = {x: number, y: number}
+
 export class Vector2 {
     #x = 0
     #y = 0
@@ -5,6 +7,10 @@ export class Vector2 {
     constructor(x: number, y: number) {
         this.#x = x
         this.#y = y
+    }
+
+    static fromVectorLike({x, y}: Vector2Like): Vector2 {
+        return new Vector2(x, y)
     }
 
     get x(): number {
