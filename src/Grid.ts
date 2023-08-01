@@ -467,7 +467,17 @@ export class Grid {
                     this.#stack.push(delta.int)
                     break
                 case 'readInt':
+                    (() => {
+                        const int = this.#stack.pop()
+                        this.#io.ungetDigit(int)
+                    })()
+                    break
                 case 'readChar':
+                    (() => {
+                        const c = String.fromCharCode(Number(this.#stack.pop()))
+                        this.#io.ungetChar(c)
+                    })
+                    break
                 case 'pushInt':
                     this.#stack.pop()
             }

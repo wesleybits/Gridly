@@ -4,7 +4,9 @@ export interface GridIO {
     putString(str: string): void
     unputString(str: string): void
     getChar(): string
+    ungetChar(char: string): void
     getDigit(): bigint
+    ungetDigit(d: bigint): void
 }
 
 export class StandardIO implements GridIO {
@@ -43,6 +45,10 @@ export class StandardIO implements GridIO {
         return this.#getc()
     }
 
+    ungetChar(char: string): void {
+        this.#buffer.unshift(char)
+    }
+
     getDigit(): bigint {
         this.putString('(0-9): ')
         let c = this.#getc()
@@ -51,6 +57,10 @@ export class StandardIO implements GridIO {
             c = this.#getc()
         }
         return BigInt(c)
+    }
+
+    ungetDigit(d: bigint): void {
+        this.#buffer.unshift(`${d}`)
     }
 }
 
@@ -108,6 +118,10 @@ export class DebugIO implements GridIO {
         return this.#getc()
     }
 
+    ungetChar(char: string): void {
+        this.#buffer.unshift(char)
+    }
+
     getDigit(): bigint {
         Deno.stdout.writeSync(new TextEncoder().encode('Input a digit (0-9): '))
         let c = this.#getc()
@@ -116,6 +130,10 @@ export class DebugIO implements GridIO {
             c = this.#getc()
         }
         return BigInt(c)
+    }
+
+    ungetDigit(d: bigint): void {
+        this.#buffer.unshift(`${d}`)
     }
 
     tail(len = 3): string[] {
