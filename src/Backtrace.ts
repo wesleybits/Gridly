@@ -52,8 +52,8 @@ export interface Backtrace {
     pushPlace(x: bigint, y: bigint, oldV: string): void
     pushGrab(x: bigint, y: bigint): void
     pushPushInt(): void
-    pop(): Delta | undefined
-    peek(): Delta | undefined
+    latchOps(): void
+    pop(): Delta[] | undefined
     get depth(): number
 }
 
@@ -106,10 +106,10 @@ export class NullBacktrace implements Backtrace {
     pushPushInt(): void {
         return
     }
-    pop(): Delta | undefined {
-        return undefined
+    latchOps(): void {
+        return
     }
-    peek(): Delta | undefined {
+    pop(): Delta[] | undefined {
         return undefined
     }
     get depth(): number {
@@ -118,93 +118,92 @@ export class NullBacktrace implements Backtrace {
 }
 
 export class RecordingBacktrace implements Backtrace {
-    #stack: Delta[]
+    #stack: Delta[][]
+    #deltaBuf: Delta[]
     #stackLimit: number | undefined
 
     constructor(stackLimit: number | undefined = undefined) {
         this.#stack = []
+        this.#deltaBuf = []
         this.#stackLimit = stackLimit
     }
 
-    #push(d: Delta) {
-        this.#stack.push(d)
-        if (this.#stackLimit && this.#stackLimit < this.#stack.length) {
-            while (this.#stackLimit < this.#stack.length) {
-                this.#stack.shift()
-            }
-        }
+    #shiftOp(d: Delta) {
+        this.#deltaBuf.unshift(d)
     }
 
     pushModeChange() {
-        this.#push({tag: 'modeChange'})
+        this.#shiftOp({tag: 'modeChange'})
     }
 
     pushMath(a: bigint, b: bigint) {
-        this.#push({a, b, tag: 'math'})
+        this.#shiftOp({a, b, tag: 'math'})
     }
 
     pushMove(position: Vector2) {
-        this.#push({position, tag: 'move'})
+        this.#shiftOp({position, tag: 'move'})
     }
     pushAcceleration(velocity: Vector2): void {
-        this.#push({velocity, tag: 'accelerate'})
+        this.#shiftOp({velocity, tag: 'accelerate'})
     }
     pushNot(pop: bigint) {
-        this.#push({pop, tag: 'not'})
+        this.#shiftOp({pop, tag: 'not'})
     }
 
     pushGreaterThan(a: bigint, b: bigint) {
-        this.#push({a, b, tag: 'greaterThan'})
+        this.#shiftOp({a, b, tag: 'greaterThan'})
     }
 
     pushPrintInt(int: bigint) {
-        this.#push({int, tag: 'printInt'})
+        this.#shiftOp({int, tag: 'printInt'})
     }
 
     pushPrintChar(char: bigint) {
-        this.#push({char, tag: 'printChar'})
+        this.#shiftOp({char, tag: 'printChar'})
     }
 
     pushReadInt() {
-        this.#push({tag: 'readInt'})
+        this.#shiftOp({tag: 'readInt'})
     }
 
     pushReadChar() {
-        this.#push({tag: 'readChar'})
+        this.#shiftOp({tag: 'readChar'})
     }
 
     pushDuplicate() {
-        this.#push({tag: 'duplicate'})
+        this.#shiftOp({tag: 'duplicate'})
     }
 
     pushSwap() {
-        this.#push({tag: 'swap'})
+        this.#shiftOp({tag: 'swap'})
     }
 
     pushDiscard(discarded: bigint) {
-        this.#push({discarded, tag: 'discard'})
+        this.#shiftOp({discarded, tag: 'discard'})
     }
 
     pushPlace(x: bigint, y: bigint, oldV: string) {
-        this.#push({x, y, oldV, tag: 'place'})
+        this.#shiftOp({x, y, oldV, tag: 'place'})
     }
 
     pushGrab(x: bigint, y: bigint) {
-        this.#push({x, y, tag: 'grab'})
+        this.#shiftOp({x, y, tag: 'grab'})
     }
 
     pushPushInt() {
-        this.#push({tag: 'pushInt'})
+        this.#shiftOp({tag: 'pushInt'})
     }
 
-    pop(): Delta | undefined {
+    latchOps(): void {
+        while (this.#stackLimit && this.#stack.length >= this.#stackLimit) {
+            this.#stack.shift()
+        }
+        this.#stack.push(this.#deltaBuf)
+        this.#deltaBuf = []
+    }
+
+    pop(): Delta[] | undefined {
         return this.#stack.pop()
-    }
-
-    peek(): Delta | undefined {
-        if (this.#stack.length === 0)
-            return undefined
-        return this.#stack[this.#stack.length - 1]
     }
 
     get depth(): number {

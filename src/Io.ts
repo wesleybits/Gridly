@@ -82,7 +82,7 @@ export class DebugIO implements GridIO {
             const buff = new Uint8Array(1024)
             const decoder = new TextDecoder()
             this.#input.readSync(buff)
-            this.#buffer = decoder.decode(buff).split('')
+            this.#buffer = decoder.decode(buff).trim().split('')
             c = this.#buffer.shift()
         }
         return c
@@ -108,9 +108,15 @@ export class DebugIO implements GridIO {
     }
 
     unputString(str: string): void {
-        const lastIdx = this.#output.length - 1
-        const lastStr = this.#output[lastIdx]
-        this.#output[lastIdx] = lastStr.slice(0, this.#output.length - str.length)
+        if (str === '\n')
+            this.#output.pop()
+        else {
+            const lastIdx = this.#output.length - 1
+            const lastStr = this.#output[lastIdx]
+            console.log('lastStr', lastStr)
+            this.#output[lastIdx] = lastStr.slice(0, lastStr.length - str.length)
+            console.log('at lastIdx', this.#output[lastIdx])
+        }
     }
 
     getChar(): string {

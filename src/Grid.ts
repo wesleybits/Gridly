@@ -89,6 +89,7 @@ export class Grid {
     }
 
     #accelerate(opcode: Dir): Grid {
+        let cond: bigint
         this.#bt.pushAcceleration(this.#velocity)
         switch (opcode) {
             case '<':
@@ -104,16 +105,24 @@ export class Grid {
                 this.#velocity = down
                 break
             case '←':
-                this.#velocity = this.#stack.pop() === 0n ? right : left
+                cond = this.#stack.pop()
+                this.#bt.pushDiscard(cond)
+                this.#velocity = cond === 0n ? right : left
                 break
             case '↑':
-                this.#velocity = this.#stack.pop() === 0n ? down : up
+                cond = this.#stack.pop()
+                this.#bt.pushDiscard(cond)
+                this.#velocity = cond === 0n ? down : up
                 break
             case '→':
-                this.#velocity = this.#stack.pop() === 0n ? left : right
+                cond = this.#stack.pop()
+                this.#bt.pushDiscard(cond)
+                this.#velocity = cond === 0n ? left : right
                 break
             case '↓':
-                this.#velocity = this.#stack.pop() === 0n ? up : down
+                cond = this.#stack.pop()
+                this.#bt.pushDiscard(cond)
+                this.#velocity = cond === 0n ? up : down
         }
         return this
     }
@@ -307,7 +316,8 @@ export class Grid {
        switch (curr) {
 // mode changes
            case '"':
-               return this.#changeMode().#move()
+               this.#changeMode().#move()
+               break
 // movement control
            case '<':
            case '^':
@@ -317,50 +327,69 @@ export class Grid {
            case '↑':
            case '→':
            case '↓':
-               return this.#accelerate(curr).#move()
+               this.#accelerate(curr).#move()
+               break
            case '?':
-               return this.#randomAccelerate().#move()
+               this.#randomAccelerate().#move()
+               break
            case '#':
-               return this.#move().#move()
+               this.#move().#move()
+               break
 // maths and logic
            case '+':
            case '-':
            case '*':
            case '/':
            case '%':
-               return this.#math(curr).#move()
+               this.#math(curr).#move()
+               break
            case '!':
-               return this.#not().#move()
+               this.#not().#move()
+               break
            case '`':
-               return this.#greaterThan().#move()
+               this.#greaterThan().#move()
+               break
 // i/o
            case '.':
-               return this.#printInt().#move()
+               this.#printInt().#move()
+               break
            case ',':
-               return this.#printChar().#move()
+               this.#printChar().#move()
+               break
            case '&':
-               return this.#readInt().#move()
+               this.#readInt().#move()
+               break
            case '~':
-               return this.#readChar().#move()
+               this.#readChar().#move()
+               break
 // stack manipulation
            case ':':
-               return this.#duplicate().#move()
+               this.#duplicate().#move()
+               break
            case '\\':
-               return this.#swap().#move()
+               this.#swap().#move()
+               break
            case '$':
-               return this.#discard().#move()
+               this.#discard().#move()
+               break
 // memory management
            case 'p':
-               return this.#place().#move()
+               this.#place().#move()
+               break
            case 'g':
-               return this.#grab().#move()
+               this.#grab().#move()
+               break
 // exit control
            case '@':
-               return this.#stop()
+               this.#stop()
+               break
 // 1-digit int pushing or no op
            default :
-               return this.#pushInt(curr).#move()
+               this.#pushInt(curr).#move()
+               break
        }
+       this.#bt.latchOps()
+       return this
     }
 
     get running(): boolean {
@@ -412,8 +441,10 @@ export class Grid {
     }
 
     unstep(): Grid {
-        let delta = this.#bt.pop()
-        while (delta && this.#bt.peek()?.tag !== 'move') {
+        const delta = this.#bt.pop()
+        if (!delta)
+            return this
+        delta.forEach(delta => {
             switch (delta.tag) {
                 case 'move':
                     this.#position = delta.position
@@ -423,8 +454,8 @@ export class Grid {
                     break
                 case 'math':
                     this.#stack.pop()
-                    this.#stack.push(delta.a)
                     this.#stack.push(delta.b)
+                    this.#stack.push(delta.a)
                     break
                 case 'not':
                     this.#stack.pop()
@@ -432,11 +463,17 @@ export class Grid {
                     break
                 case 'greaterThan':
                     this.#stack.pop()
-                    this.#stack.push(delta.a)
                     this.#stack.push(delta.b)
+                    this.#stack.push(delta.a)
                     break
                 case 'modeChange':
-                    this.#changeMode()
+                    switch (this.#mode) {
+                        case 'NORMAL':
+                            this.#mode = 'TEXT'
+                            break
+                        case 'TEXT':
+                            this.#mode = 'NORMAL'
+                    }
                     break
                 case 'discard':
                     this.#stack.push(delta.discarded)
@@ -445,7 +482,12 @@ export class Grid {
                     this.#stack.pop()
                     break
                 case 'swap':
-                    this.#swap()
+                    (() => {
+                        const x = this.#stack.pop()
+                        const y = this.#stack.pop()
+                        this.#stack.push(x)
+                        this.#stack.push(y)
+                    })
                     break
                 case 'grab':
                     this.#stack.pop()
@@ -481,8 +523,7 @@ export class Grid {
                 case 'pushInt':
                     this.#stack.pop()
             }
-            delta = this.#bt.pop()
-        }
+        })
         return this
     }
 }

@@ -57,7 +57,7 @@ while (grid.running) {
         console.log(g.map(r => r.join('')).join('\n'))
         Deno.stdout.writeSync(e.encode('...'))
         Deno.stdin.readSync(buf)
-        const input = d.decode(buf)
+        const input = d.decode(buf).trim()
         if (input === '<')
             stepperMode = 'backwards'
         if (input === '>')
