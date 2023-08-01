@@ -459,9 +459,11 @@ export class Grid {
                     this.#write(Number(delta.x), Number(delta.y), delta.oldV)
                     break
                 case 'printChar':
+                    this.#io.unputString(String.fromCharCode(Number(delta.char)))
                     this.#stack.push(delta.char)
                     break
                 case 'printInt':
+                    this.#io.unputString(` ${delta.int} `)
                     this.#stack.push(delta.int)
                     break
                 case 'readInt':

@@ -2,6 +2,7 @@ import {Stack} from './Stack.ts'
 
 export interface GridIO {
     putString(str: string): void
+    unputString(str: string): void
     getChar(): string
     getDigit(): bigint
 }
@@ -31,6 +32,10 @@ export class StandardIO implements GridIO {
 
     putString(str: string): void {
         this.#output.writeSync(new TextEncoder().encode(str))
+    }
+
+    unputString(_str: string): void {
+        return
     }
 
     getChar(): string {
@@ -90,6 +95,12 @@ export class DebugIO implements GridIO {
             line += str
         }
         this.#push(line)
+    }
+
+    unputString(str: string): void {
+        const lastIdx = this.#output.length - 1
+        const lastStr = this.#output[lastIdx]
+        this.#output[lastIdx] = lastStr.slice(0, this.#output.length - str.length)
     }
 
     getChar(): string {
