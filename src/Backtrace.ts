@@ -5,7 +5,7 @@ export type Math = Tag<'math'> & {a: bigint, b: bigint}
 export type Acceleration = Tag<'accelerate'> & {velocity: Vector2}
 export type Move = Tag<'move'> & {position: Vector2}
 export type Not = Tag<'not'> & {pop: bigint}
-export type GreaterThan = Tag<'greaterThan'> & {pop: bigint}
+export type GreaterThan = Tag<'greaterThan'> & {a: bigint, b: bigint}
 export type PrintInt = Tag<'printInt'> & {int: bigint}
 export type PrintChar = Tag<'printChar'> & {char: bigint}
 export type ReadInt = Tag<'readInt'>
@@ -39,8 +39,9 @@ export interface Backtrace {
     pushModeChange(): void
     pushMath(a: bigint, b: bigint): void
     pushMove(position: Vector2): void
+    pushAcceleration(velocity: Vector2): void
     pushNot(pop: bigint): void
-    pushGreaterThan(pop: bigint): void
+    pushGreaterThan(a: bigint, b: bigint): void
     pushPrintInt(int: bigint): void
     pushPrintChar(char: bigint): void
     pushReadInt(): void
@@ -52,6 +53,8 @@ export interface Backtrace {
     pushGrab(x: bigint, y: bigint): void
     pushPushInt(): void
     pop(): Delta | undefined
+    peek(): Delta | undefined
+    get depth(): number
 }
 
 export class NullBacktrace implements Backtrace {
@@ -64,10 +67,13 @@ export class NullBacktrace implements Backtrace {
     pushMove(_position: Vector2): void {
         return
     }
+    pushAcceleration(_velocity: Vector2): void {
+        return
+    }
     pushNot(_pop: bigint): void {
         return
     }
-    pushGreaterThan(_pop: bigint): void {
+    pushGreaterThan(_a: bigint, _b: bigint): void {
         return
     }
     pushPrintInt(_int: bigint): void {
@@ -103,6 +109,12 @@ export class NullBacktrace implements Backtrace {
     pop(): Delta | undefined {
         return undefined
     }
+    peek(): Delta | undefined {
+        return undefined
+    }
+    get depth(): number {
+        return 0
+    }
 }
 
 export class RecordingBacktrace implements Backtrace {
@@ -134,13 +146,15 @@ export class RecordingBacktrace implements Backtrace {
     pushMove(position: Vector2) {
         this.#push({position, tag: 'move'})
     }
-
+    pushAcceleration(velocity: Vector2): void {
+        this.#push({velocity, tag: 'accelerate'})
+    }
     pushNot(pop: bigint) {
         this.#push({pop, tag: 'not'})
     }
 
-    pushGreaterThan(pop: bigint) {
-        this.#push({pop, tag: 'greaterThan'})
+    pushGreaterThan(a: bigint, b: bigint) {
+        this.#push({a, b, tag: 'greaterThan'})
     }
 
     pushPrintInt(int: bigint) {
@@ -185,5 +199,15 @@ export class RecordingBacktrace implements Backtrace {
 
     pop(): Delta | undefined {
         return this.#stack.pop()
+    }
+
+    peek(): Delta | undefined {
+        if (this.#stack.length === 0)
+            return undefined
+        return this.#stack[this.#stack.length - 1]
+    }
+
+    get depth(): number {
+        return this.#stack.length
     }
 }

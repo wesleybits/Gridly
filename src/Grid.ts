@@ -1,6 +1,7 @@
 import {Vector2, left, right, up, down} from "./Vector2.ts"
 import {GridIO, StandardIO} from "./Io.ts"
 import {Stack} from "./Stack.ts"
+import { Backtrace, NullBacktrace } from "./Backtrace.ts"
 
 type AbsoluteDir = '<'|'^'|'>'|'v'
 type ConditionalDir = '←'|'↑'|'→'|'↓'
@@ -17,6 +18,7 @@ export class Grid {
     #running: boolean
     #mode: 'NORMAL' | 'TEXT'
     #io: GridIO
+    #bt: Backtrace
 
     constructor(grid: string[][]) {
         this.#grid = grid;
@@ -28,6 +30,7 @@ export class Grid {
         this.#running = true
         this.#mode = 'NORMAL'
         this.#io = new StandardIO()
+        this.#bt = new NullBacktrace
     }
 
     static async load(filename: string): Promise<Grid> {
@@ -46,11 +49,13 @@ export class Grid {
     }
 
     #move(): Grid {
+        this.#bt.pushMove(this.#position)
         this.#position = this.#position.add(this.#velocity)
         return this
     }
 
     #changeMode(): Grid {
+        this.#bt.pushModeChange()
         switch (this.#mode) {
             case 'NORMAL':
                 this.#mode = 'TEXT'
@@ -64,6 +69,7 @@ export class Grid {
 
     #not(): Grid {
         const a = this.#stack.pop()
+        this.#bt.pushNot(a)
         if (a === 0n)
             this.#stack.push(1n)
         else
@@ -74,6 +80,7 @@ export class Grid {
     #greaterThan(): Grid {
         const a = this.#stack.pop()
         const b = this.#stack.pop()
+        this.#bt.pushGreaterThan(a, b)
         if (b > a)
             this.#stack.push(1n)
         else
@@ -82,6 +89,7 @@ export class Grid {
     }
 
     #accelerate(opcode: Dir): Grid {
+        this.#bt.pushAcceleration(this.#velocity)
         switch (opcode) {
             case '<':
                 this.#velocity = left
@@ -120,6 +128,7 @@ export class Grid {
     #math(opcode: MathOp): Grid {
         const a = this.#stack.pop()
         const b = this.#stack.pop()
+        this.#bt.pushMath(a, b)
         let result = 0n
         switch (opcode) {
             case '+':
@@ -143,24 +152,28 @@ export class Grid {
 
     #printInt(): Grid {
         const a = this.#stack.pop()
+        this.#bt.pushPrintInt(a)
         this.#io.putString(` ${a} `)
         return this
     }
 
     #printChar(): Grid {
         const a = this.#stack.pop()
+        this.#bt.pushPrintChar(a)
         const c = String.fromCharCode(Number(a))
         this.#io.putString(c)
         return this
     }
 
     #readInt(): Grid {
+        this.#bt.pushReadInt()
         const a = this.#io.getDigit()
         this.#stack.push(a)
         return this
     }
 
     #readChar(): Grid {
+        this.#bt.pushReadChar()
         const a = this.#io.getChar()
         const code = BigInt(a.charCodeAt(0))
         this.#stack.push(code)
@@ -168,6 +181,7 @@ export class Grid {
     }
 
     #duplicate(): Grid {
+        this.#bt.pushDuplicate()
         const a = this.#stack.pop()
         this.#stack.push(a)
         this.#stack.push(a)
@@ -175,6 +189,7 @@ export class Grid {
     }
 
     #swap(): Grid {
+        this.#bt.pushSwap()
         const a = this.#stack.pop()
         const b = this.#stack.pop()
         this.#stack.push(a)
@@ -183,7 +198,8 @@ export class Grid {
     }
 
     #discard(): Grid {
-        this.#stack.pop()
+        const discarded = this.#stack.pop()
+        this.#bt.pushDiscard(discarded)
         return this
     }
 
@@ -191,6 +207,8 @@ export class Grid {
         const y = this.#stack.pop()
         const x = this.#stack.pop()
         const v = this.#stack.pop()
+        const oldV = this.#read(Number(x), Number(y))
+        this.#bt.pushPlace(x, y, oldV)
         const c = String.fromCharCode(Number(v))
         this.#write(Number(x), Number(y), c)
         return this
@@ -199,6 +217,7 @@ export class Grid {
     #grab(): Grid {
         const y = this.#stack.pop()
         const x = this.#stack.pop()
+        this.#bt.pushGrab(x, y)
         const c = this.#read(Number(x), Number(y))
         const v = BigInt(c.charCodeAt(0))
         this.#stack.push(v)
@@ -213,12 +232,14 @@ export class Grid {
     #pushInt(i: string): Grid {
         if ('0' > i || i > '9')
             return this
+        this.#bt.pushPushInt()
         this.#stack.push(BigInt(i))
         return this
     }
 
     #pushChar(c: string): Grid {
         const v = BigInt(c.charCodeAt(0))
+        this.#bt.pushPushInt()
         this.#stack.push(v)
         return this
     }
@@ -374,6 +395,10 @@ export class Grid {
         this.#io = newIO
     }
 
+    set backtraceRecorder(bt: Backtrace) {
+        this.#bt = bt
+    }
+
     step(): Grid {
         const curr = this.#read(this.#position.x, this.#position.y)
         switch (this.#mode) {
@@ -384,5 +409,68 @@ export class Grid {
             default :
                 return this
         }
+    }
+
+    unstep(): Grid {
+        let delta = this.#bt.pop()
+        while (delta && this.#bt.peek()?.tag !== 'move') {
+            switch (delta.tag) {
+                case 'move':
+                    this.#position = delta.position
+                    break
+                case 'accelerate':
+                    this.#velocity = delta.velocity
+                    break
+                case 'math':
+                    this.#stack.pop()
+                    this.#stack.push(delta.a)
+                    this.#stack.push(delta.b)
+                    break
+                case 'not':
+                    this.#stack.pop()
+                    this.#stack.push(delta.pop)
+                    break
+                case 'greaterThan':
+                    this.#stack.pop()
+                    this.#stack.push(delta.a)
+                    this.#stack.push(delta.b)
+                    break
+                case 'modeChange':
+                    this.#changeMode()
+                    break
+                case 'discard':
+                    this.#stack.push(delta.discarded)
+                    break
+                case 'duplicate':
+                    this.#stack.pop()
+                    break
+                case 'swap':
+                    this.#swap()
+                    break
+                case 'grab':
+                    this.#stack.pop()
+                    this.#stack.push(delta.x)
+                    this.#stack.push(delta.y)
+                    break
+                case 'place':
+                    this.#stack.push(delta.x)
+                    this.#stack.push(delta.y)
+                    this.#stack.push(BigInt(this.#read(Number(delta.x), Number(delta.y)).charCodeAt(0)))
+                    this.#write(Number(delta.x), Number(delta.y), delta.oldV)
+                    break
+                case 'printChar':
+                    this.#stack.push(delta.char)
+                    break
+                case 'printInt':
+                    this.#stack.push(delta.int)
+                    break
+                case 'readInt':
+                case 'readChar':
+                case 'pushInt':
+                    this.#stack.pop()
+            }
+            delta = this.#bt.pop()
+        }
+        return this
     }
 }
