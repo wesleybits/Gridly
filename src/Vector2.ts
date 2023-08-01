@@ -1,6 +1,6 @@
 export class Vector2 {
-#x = 0
-#y = 0
+    #x = 0
+    #y = 0
 
     constructor(x: number, y: number) {
         this.#x = x
@@ -17,6 +17,10 @@ export class Vector2 {
 
     add(v: Vector2): Vector2 {
         return new Vector2(this.#x + v.x, this.#y + v.y)
+    }
+
+    subtract(v: Vector2): Vector2 {
+        return new Vector2(this.#x - v.x, this.#y - v.y)
     }
 
     toString(): string {

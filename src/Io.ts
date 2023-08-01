@@ -2,8 +2,11 @@ import {Stack} from './Stack.ts'
 
 export interface GridIO {
     putString(str: string): void
+    unputString(str: string): void
     getChar(): string
+    ungetChar(char: string): void
     getDigit(): bigint
+    ungetDigit(d: bigint): void
 }
 
 export class StandardIO implements GridIO {
@@ -33,9 +36,17 @@ export class StandardIO implements GridIO {
         this.#output.writeSync(new TextEncoder().encode(str))
     }
 
+    unputString(_str: string): void {
+        return
+    }
+
     getChar(): string {
         this.putString(': ')
         return this.#getc()
+    }
+
+    ungetChar(char: string): void {
+        this.#buffer.unshift(char)
     }
 
     getDigit(): bigint {
@@ -46,6 +57,10 @@ export class StandardIO implements GridIO {
             c = this.#getc()
         }
         return BigInt(c)
+    }
+
+    ungetDigit(d: bigint): void {
+        this.#buffer.unshift(`${d}`)
     }
 }
 
@@ -67,7 +82,7 @@ export class DebugIO implements GridIO {
             const buff = new Uint8Array(1024)
             const decoder = new TextDecoder()
             this.#input.readSync(buff)
-            this.#buffer = decoder.decode(buff).split('')
+            this.#buffer = decoder.decode(buff).trim().split('')
             c = this.#buffer.shift()
         }
         return c
@@ -92,9 +107,25 @@ export class DebugIO implements GridIO {
         this.#push(line)
     }
 
+    unputString(str: string): void {
+        if (str === '\n')
+            this.#output.pop()
+        else {
+            const lastIdx = this.#output.length - 1
+            const lastStr = this.#output[lastIdx]
+            console.log('lastStr', lastStr)
+            this.#output[lastIdx] = lastStr.slice(0, lastStr.length - str.length)
+            console.log('at lastIdx', this.#output[lastIdx])
+        }
+    }
+
     getChar(): string {
         Deno.stdout.writeSync(new TextEncoder().encode('Input a char: '))
         return this.#getc()
+    }
+
+    ungetChar(char: string): void {
+        this.#buffer.unshift(char)
     }
 
     getDigit(): bigint {
@@ -105,6 +136,10 @@ export class DebugIO implements GridIO {
             c = this.#getc()
         }
         return BigInt(c)
+    }
+
+    ungetDigit(d: bigint): void {
+        this.#buffer.unshift(`${d}`)
     }
 
     tail(len = 3): string[] {
