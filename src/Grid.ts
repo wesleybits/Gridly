@@ -1,7 +1,8 @@
-import {Vector2, left, right, up, down} from "./Vector2.ts"
+import {Vector2Like, Vector2, left, right, up, down} from "./Vector2.ts"
 import {GridIO, StandardIO} from "./Io.ts"
 import {Stack} from "./Stack.ts"
-import { Backtrace, NullBacktrace } from "./Backtrace.ts"
+import {Backtrace, NullBacktrace} from "./Backtrace.ts"
+import { BoundryHooks, defaultHooks } from "./BoundryHooks.ts"
 
 type AbsoluteDir = '<'|'^'|'>'|'v'
 type ConditionalDir = '←'|'↑'|'→'|'↓'
@@ -19,9 +20,10 @@ export class Grid {
     #mode: 'NORMAL' | 'TEXT'
     #io: GridIO
     #bt: Backtrace
+    #boundryHooks: BoundryHooks
 
     constructor(grid: string[][]) {
-        this.#grid = grid;
+        this.#grid = grid
         this.#height = grid.length
         this.#width = this.#height === 0 ? 0 : grid[0].length
         this.#position = new Vector2(0, 0)
@@ -31,6 +33,7 @@ export class Grid {
         this.#mode = 'NORMAL'
         this.#io = new StandardIO()
         this.#bt = new NullBacktrace
+        this.#boundryHooks = {...defaultHooks}
     }
 
     static async load(filename: string): Promise<Grid> {
@@ -217,7 +220,10 @@ export class Grid {
         const x = this.#stack.pop()
         const v = this.#stack.pop()
         const oldV = this.#read(Number(x), Number(y))
-        this.#bt.pushPlace(x, y, oldV)
+        if (oldV)
+            this.#bt.pushPlace(x, y, oldV)
+        else
+            this.#bt.pushPlace(x, y, ' ')
         const c = String.fromCharCode(Number(v))
         this.#write(Number(x), Number(y), c)
         return this
@@ -226,9 +232,11 @@ export class Grid {
     #grab(): Grid {
         const y = this.#stack.pop()
         const x = this.#stack.pop()
-        this.#bt.pushGrab(x, y)
         const c = this.#read(Number(x), Number(y))
+        if (!c)
+            return this
         const v = BigInt(c.charCodeAt(0))
+        this.#bt.pushGrab(x, y)
         this.#stack.push(v)
         return this
     }
@@ -255,16 +263,17 @@ export class Grid {
 
     #write(x: number, y: number, v: string): Grid {
         if (y < 0) {
-            console.log('Invalid operation: attempting to write above the top edge of the grid')
-            Deno.exit(1)
+            this.#boundryHooks.top.write()
+            return this
         }
 
         if (x < 0) {
-            console.log('Invalid operation: attempting to write past the left edge of the grid')
-            Deno.exit(1)
+            this.#boundryHooks.left.write()
+            return this
         }
 
         if (x >= this.#width) {
+            this.#boundryHooks.right.write()
             const newWidth = x + 1
             this.#grid.forEach((row) => {
                 while (row.length < newWidth)
@@ -274,6 +283,7 @@ export class Grid {
         }
 
         if (y >= this.#height) {
+            this.#boundryHooks.bottom.write()
             const newHeight = y + 1
             const emptyRow = Array(this.#width).map((_) => ' ')
             while (this.#grid.length < newHeight)
@@ -285,18 +295,25 @@ export class Grid {
         return this
     }
 
-    #read(x: number, y: number): string {
-        if (x >= this.#width || y >= this.#height)
-            return ' '
+    #read(x: number, y: number): string | undefined {
+        if (x >= this.#width) {
+            this.#boundryHooks.right.read()
+            return undefined
+        }
+
+        if (y >= this.#height) {
+            this.#boundryHooks.bottom.read()
+            return undefined
+        }
 
         if (y < 0) {
-            console.log('Invalid operation: attempting to read past the top edge of the grid')
-            Deno.exit(1)
+            this.#boundryHooks.top.read()
+            return ' '
         }
 
         if (x < 0) {
-            console.log('Invalid operation: attempting to read past the left edge of the grid')
-            Deno.exit(1)
+            this.#boundryHooks.left.read()
+            return ' '
         }
 
         return this.#grid[y][x]
@@ -305,14 +322,15 @@ export class Grid {
     #handleTextCommand(curr: string): Grid {
         switch (curr) {
             case '"':
-                return this.#changeMode().#move()
+                this.#changeMode().#move()
+                break
             default :
-                return this.#pushChar(curr).#move()
+                this.#pushChar(curr).#move()
         }
+        return this
     }
 
    #handleNormalCommand(curr: string): Grid {
-
        switch (curr) {
 // mode changes
            case '"':
@@ -388,12 +406,19 @@ export class Grid {
                this.#pushInt(curr).#move()
                break
        }
-       this.#bt.latchOps()
        return this
     }
 
     get running(): boolean {
         return this.#running
+    }
+
+    stop() {
+        this.#running = false
+    }
+
+    start() {
+        this.#running = true
     }
 
     get grid(): string[][] {
@@ -404,20 +429,56 @@ export class Grid {
         return this.#position
     }
 
+    set position({x, y}: Vector2Like) {
+        this.#position = new Vector2(x, y)
+    }
+
     get velocity(): Vector2 {
         return this.#velocity
+    }
+
+    set velocity(velocity: AbsoluteDir) {
+        switch (velocity) {
+            case '<':
+                this.#velocity = left
+                break
+            case '^':
+                this.#velocity = up
+                break
+            case '>':
+                this.#velocity = right
+                break
+            case 'v':
+                this.#velocity = down
+        }
     }
 
     get mode(): 'NORMAL' | 'TEXT' {
         return this.#mode
     }
 
-    get operator(): string {
+    set mode(newMode: 'NORMAL' | 'TEXT') {
+        this.#mode = newMode
+    }
+
+    get operator(): string | undefined {
         return this.#read(this.#position.x, this.#position.y)
+    }
+
+    set operator(op: string) {
+        this.#write(this.#position.x, this.#position.y, op)
     }
 
     get stack(): bigint[] {
         return this.#stack.array
+    }
+
+    set stack(newStack: bigint[]) {
+        this.#stack = new Stack(newStack)
+    }
+
+    get boundryHooks(): BoundryHooks {
+        return this.#boundryHooks
     }
 
     set io(newIO: GridIO) {
@@ -430,14 +491,19 @@ export class Grid {
 
     step(): Grid {
         const curr = this.#read(this.#position.x, this.#position.y)
+        if (!curr)
+            return this
+        if (!this.#running)
+            return this
         switch (this.#mode) {
             case 'TEXT':
-                return this.#handleTextCommand(curr)
+                this.#handleTextCommand(curr)
+                break
             case 'NORMAL':
-                return this.#handleNormalCommand(curr)
-            default :
-                return this
+                this.#handleNormalCommand(curr)
         }
+        this.#bt.commitOps()
+        return this
     }
 
     unstep(): Grid {
@@ -487,7 +553,7 @@ export class Grid {
                         const y = this.#stack.pop()
                         this.#stack.push(x)
                         this.#stack.push(y)
-                    })
+                    })()
                     break
                 case 'grab':
                     this.#stack.pop()
@@ -497,7 +563,7 @@ export class Grid {
                 case 'place':
                     this.#stack.push(delta.x)
                     this.#stack.push(delta.y)
-                    this.#stack.push(BigInt(this.#read(Number(delta.x), Number(delta.y)).charCodeAt(0)))
+                    this.#stack.push(BigInt(this.#read(Number(delta.x), Number(delta.y))?.charCodeAt(0) || 32))
                     this.#write(Number(delta.x), Number(delta.y), delta.oldV)
                     break
                 case 'printChar':

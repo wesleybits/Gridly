@@ -1,5 +1,3 @@
-import {Stack} from './Stack.ts'
-
 export interface GridIO {
     putString(str: string): void
     unputString(str: string): void
